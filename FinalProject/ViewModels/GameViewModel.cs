@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Linq;
 using System.Windows.Input;
 using System.Windows.Threading;
 using FinalProject.Commands;
@@ -25,6 +26,8 @@ public class GameViewModel : BaseViewModel
     private string _pauseButtonText = "Пауза";
     private string _statusMessage = "Натисніть \"Нова гра\", щоб згенерувати дошку.";
     private bool _isBoardInteractionEnabled;
+    private bool _showTimer = true;
+    private bool _highlightConflicts = true;
     private bool _isGameCompleted;
     private bool _statisticsUpdatedForCurrentSession;
 
@@ -110,6 +113,12 @@ public class GameViewModel : BaseViewModel
     {
         get => _isBoardInteractionEnabled;
         private set => SetProperty(ref _isBoardInteractionEnabled, value);
+    }
+
+    public bool ShowTimer
+    {
+        get => _showTimer;
+        private set => SetProperty(ref _showTimer, value);
     }
 
     private void StartNewGame()
@@ -199,7 +208,7 @@ public class GameViewModel : BaseViewModel
         if (string.IsNullOrWhiteSpace(inputValue))
         {
             cell.SetValue(0);
-            cellViewModel.IsConflict = false;
+            RefreshConflictHighlights();
             StatusMessage = "Значення очищено.";
             return;
         }
@@ -215,14 +224,14 @@ public class GameViewModel : BaseViewModel
         if (!_validationService.IsMoveValid(_currentSession.Board, cell.Row, cell.Column, parsedValue))
         {
             cell.SetValue(previousValue);
-            cellViewModel.IsConflict = true;
             RevertToPreviousValue(cellViewModel, previousValue);
+            RefreshConflictHighlights();
             StatusMessage = "Некоректний хід: цифра конфліктує з рядком, стовпцем або блоком.";
             return;
         }
 
-        cellViewModel.IsConflict = false;
         cellViewModel.RefreshFromModel();
+        RefreshConflictHighlights();
         StatusMessage = "Хід прийнято.";
 
         if (_validationService.IsBoardComplete(_currentSession.Board))
@@ -280,6 +289,7 @@ public class GameViewModel : BaseViewModel
             loadedSession.Pause();
             PauseButtonText = "Завершено";
             IsBoardInteractionEnabled = false;
+            RefreshConflictHighlights();
             CommandManager.InvalidateRequerySuggested();
             return;
         }
@@ -297,6 +307,7 @@ public class GameViewModel : BaseViewModel
             _gameTimer.Start();
         }
 
+        RefreshConflictHighlights();
         CommandManager.InvalidateRequerySuggested();
     }
 
@@ -403,10 +414,33 @@ public class GameViewModel : BaseViewModel
         {
             var settings = await _settingsService.GetSettingsAsync();
             SelectedDifficulty = settings.DefaultDifficulty;
+            ShowTimer = settings.ShowTimer;
+            _highlightConflicts = settings.HighlightConflicts;
+            RefreshConflictHighlights();
         }
         catch
         {
             // Keep default values when settings are unavailable.
+        }
+    }
+
+    private void RefreshConflictHighlights()
+    {
+        if (!_highlightConflicts || _currentSession is null)
+        {
+            foreach (var vm in Cells)
+            {
+                vm.IsConflict = false;
+            }
+
+            return;
+        }
+
+        foreach (var vm in Cells)
+        {
+            var cell = vm.Cell;
+            vm.IsConflict = cell.Value != 0 &&
+                            !_validationService.IsMoveValid(_currentSession.Board, cell.Row, cell.Column, cell.Value);
         }
     }
 }
