@@ -35,6 +35,16 @@
                     Margin="10,0,0,0"
                     Command="{Binding PauseResumeCommand}"
                     Content="{Binding PauseButtonText}" />
+            <Button Width="110"
+                    Height="32"
+                    Margin="10,0,0,0"
+                    Command="{Binding SaveGameCommand}"
+                    Content="Зберегти" />
+            <Button Width="120"
+                    Height="32"
+                    Margin="10,0,0,0"
+                    Command="{Binding LoadGameCommand}"
+                    Content="Завантажити" />
             <TextBlock Margin="18,0,0,0"
                        VerticalAlignment="Center"
                        FontSize="18"

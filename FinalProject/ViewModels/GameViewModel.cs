@@ -14,6 +14,7 @@ public class GameViewModel : BaseViewModel
 {
     private readonly SudokuFactory _sudokuFactory;
     private readonly IValidationService _validationService;
+    private readonly ISaveLoadService _saveLoadService;
     private readonly DispatcherTimer _gameTimer;
     private GameSession? _currentSession;
     private DateTime _lastResumeUtc;
@@ -24,14 +25,18 @@ public class GameViewModel : BaseViewModel
     private bool _isBoardInteractionEnabled;
     private bool _isGameCompleted;
 
-    public GameViewModel() : this(CreateDefaultFactory(), new ValidationService())
+    public GameViewModel() : this(CreateDefaultFactory(), new ValidationService(), CreateDefaultSaveLoadService())
     {
     }
 
-    public GameViewModel(SudokuFactory sudokuFactory, IValidationService validationService)
+    public GameViewModel(
+        SudokuFactory sudokuFactory,
+        IValidationService validationService,
+        ISaveLoadService saveLoadService)
     {
         _sudokuFactory = sudokuFactory ?? throw new ArgumentNullException(nameof(sudokuFactory));
         _validationService = validationService ?? throw new ArgumentNullException(nameof(validationService));
+        _saveLoadService = saveLoadService ?? throw new ArgumentNullException(nameof(saveLoadService));
 
         Difficulties = new ObservableCollection<GameDifficulty>(Enum.GetValues<GameDifficulty>());
         _selectedDifficulty = GameDifficulty.Easy;
@@ -39,6 +44,8 @@ public class GameViewModel : BaseViewModel
 
         NewGameCommand = new RelayCommand(_ => StartNewGame());
         PauseResumeCommand = new RelayCommand(_ => TogglePauseResume(), _ => _currentSession is not null && !_isGameCompleted);
+        SaveGameCommand = new RelayCommand(_ => _ = SaveGameAsync(), _ => _currentSession is not null);
+        LoadGameCommand = new RelayCommand(_ => _ = LoadGameAsync());
 
         _gameTimer = new DispatcherTimer
         {
@@ -56,6 +63,10 @@ public class GameViewModel : BaseViewModel
     public ICommand NewGameCommand { get; }
 
     public ICommand PauseResumeCommand { get; }
+
+    public ICommand SaveGameCommand { get; }
+
+    public ICommand LoadGameCommand { get; }
 
     public GameDifficulty SelectedDifficulty
     {
@@ -104,6 +115,51 @@ public class GameViewModel : BaseViewModel
 
         StatusMessage = $"Нова гра ({SelectedDifficulty}).";
         CommandManager.InvalidateRequerySuggested();
+    }
+
+    private async Task SaveGameAsync()
+    {
+        if (_currentSession is null)
+        {
+            StatusMessage = "Немає активної гри для збереження.";
+            return;
+        }
+
+        try
+        {
+            if (!_currentSession.IsPaused && !_isGameCompleted)
+            {
+                PersistElapsedUntilNow(_currentSession);
+                _lastResumeUtc = DateTime.UtcNow;
+            }
+
+            await _saveLoadService.SaveSessionAsync(_currentSession);
+            StatusMessage = "Гру успішно збережено.";
+        }
+        catch
+        {
+            StatusMessage = "Помилка збереження гри.";
+        }
+    }
+
+    private async Task LoadGameAsync()
+    {
+        try
+        {
+            var loadedSession = await _saveLoadService.LoadSessionAsync();
+            if (loadedSession is null)
+            {
+                StatusMessage = "Збереженої гри не знайдено.";
+                return;
+            }
+
+            ApplyLoadedSession(loadedSession);
+            StatusMessage = "Збережену гру завантажено.";
+        }
+        catch
+        {
+            StatusMessage = "Помилка завантаження гри.";
+        }
     }
 
     private void BuildCellsFromBoard(SudokuBoard board)
@@ -192,6 +248,41 @@ public class GameViewModel : BaseViewModel
         }
     }
 
+    private void ApplyLoadedSession(GameSession loadedSession)
+    {
+        _gameTimer.Stop();
+
+        _currentSession = loadedSession;
+        SelectedDifficulty = loadedSession.Difficulty;
+        BuildCellsFromBoard(loadedSession.Board);
+        UpdateElapsedTimeDisplay(loadedSession.Elapsed);
+
+        _isGameCompleted = _validationService.IsBoardComplete(loadedSession.Board);
+        if (_isGameCompleted)
+        {
+            loadedSession.Pause();
+            PauseButtonText = "Завершено";
+            IsBoardInteractionEnabled = false;
+            CommandManager.InvalidateRequerySuggested();
+            return;
+        }
+
+        if (loadedSession.IsPaused)
+        {
+            PauseButtonText = "Продовжити";
+            IsBoardInteractionEnabled = false;
+        }
+        else
+        {
+            PauseButtonText = "Пауза";
+            IsBoardInteractionEnabled = true;
+            _lastResumeUtc = DateTime.UtcNow;
+            _gameTimer.Start();
+        }
+
+        CommandManager.InvalidateRequerySuggested();
+    }
+
     private void OnGameTimerTick(object? sender, EventArgs e)
     {
         if (_currentSession is null || _currentSession.IsPaused || _isGameCompleted)
@@ -254,5 +345,10 @@ public class GameViewModel : BaseViewModel
 
         var generator = new SudokuGenerator(strategies);
         return new SudokuFactory(generator);
+    }
+
+    private static ISaveLoadService CreateDefaultSaveLoadService()
+    {
+        return new SaveLoadService();
     }
 }
