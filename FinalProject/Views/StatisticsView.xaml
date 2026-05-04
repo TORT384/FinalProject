@@ -5,14 +5,55 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d">
     <Grid>
-        <StackPanel VerticalAlignment="Center">
+        <StackPanel MaxWidth="420"
+                    VerticalAlignment="Center">
             <TextBlock FontSize="24"
                        FontWeight="SemiBold"
                        Text="{Binding Title}" />
-            <TextBlock Margin="0,10,0,0"
+
+            <Grid Margin="0,18,0,0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Grid.Row="0" Grid.Column="0" Text="Зіграно ігор:" />
+                <TextBlock Grid.Row="0" Grid.Column="1" FontWeight="SemiBold" Text="{Binding TotalGames}" />
+
+                <TextBlock Grid.Row="1" Grid.Column="0" Margin="0,8,0,0" Text="Перемог:" />
+                <TextBlock Grid.Row="1" Grid.Column="1" Margin="0,8,0,0" FontWeight="SemiBold" Text="{Binding Wins}" />
+
+                <TextBlock Grid.Row="2" Grid.Column="0" Margin="0,8,0,0" Text="Відсоток перемог:" />
+                <TextBlock Grid.Row="2" Grid.Column="1" Margin="0,8,0,0" FontWeight="SemiBold" Text="{Binding WinRate}" />
+
+                <TextBlock Grid.Row="3" Grid.Column="0" Margin="0,8,0,0" Text="Найкращий час / Середній:" />
+                <TextBlock Grid.Row="3"
+                           Grid.Column="1"
+                           Margin="0,8,0,0"
+                           FontWeight="SemiBold"
+                           Text="{Binding BestTime}" />
+            </Grid>
+
+            <TextBlock Margin="0,8,0,0"
+                       FontWeight="SemiBold"
+                       Text="{Binding AverageTime}" />
+
+            <Button Width="130"
+                    Height="32"
+                    Margin="0,18,0,0"
+                    HorizontalAlignment="Left"
+                    Command="{Binding RefreshCommand}"
+                    Content="Оновити" />
+
+            <TextBlock Margin="0,12,0,0"
                        Foreground="#556070"
-                       TextWrapping="Wrap"
-                       Text="{Binding Description}" />
+                       Text="{Binding StatusMessage}" />
         </StackPanel>
     </Grid>
 </UserControl>

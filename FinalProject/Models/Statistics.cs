@@ -10,6 +10,32 @@ public class Statistics
 
     public TimeSpan AverageCompletionTime { get; private set; } = TimeSpan.Zero;
 
+    public static Statistics CreateSnapshot(int totalGames, int wins, TimeSpan bestTime, TimeSpan averageCompletionTime)
+    {
+        if (totalGames < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(totalGames), "Total games cannot be negative.");
+        }
+
+        if (wins < 0 || wins > totalGames)
+        {
+            throw new ArgumentOutOfRangeException(nameof(wins), "Wins must be between 0 and total games.");
+        }
+
+        if (bestTime < TimeSpan.Zero || averageCompletionTime < TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(nameof(bestTime), "Time values cannot be negative.");
+        }
+
+        return new Statistics
+        {
+            TotalGames = totalGames,
+            Wins = wins,
+            BestTime = bestTime,
+            AverageCompletionTime = averageCompletionTime
+        };
+    }
+
     public void RegisterGameResult(bool isWin, TimeSpan completionTime)
     {
         if (completionTime < TimeSpan.Zero)

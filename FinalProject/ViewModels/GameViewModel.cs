@@ -15,6 +15,7 @@ public class GameViewModel : BaseViewModel
     private readonly SudokuFactory _sudokuFactory;
     private readonly IValidationService _validationService;
     private readonly ISaveLoadService _saveLoadService;
+    private readonly IStatisticsService _statisticsService;
     private readonly DispatcherTimer _gameTimer;
     private GameSession? _currentSession;
     private DateTime _lastResumeUtc;
@@ -24,19 +25,26 @@ public class GameViewModel : BaseViewModel
     private string _statusMessage = "Натисніть \"Нова гра\", щоб згенерувати дошку.";
     private bool _isBoardInteractionEnabled;
     private bool _isGameCompleted;
+    private bool _statisticsUpdatedForCurrentSession;
 
-    public GameViewModel() : this(CreateDefaultFactory(), new ValidationService(), CreateDefaultSaveLoadService())
+    public GameViewModel() : this(
+        CreateDefaultFactory(),
+        new ValidationService(),
+        CreateDefaultSaveLoadService(),
+        CreateDefaultStatisticsService())
     {
     }
 
     public GameViewModel(
         SudokuFactory sudokuFactory,
         IValidationService validationService,
-        ISaveLoadService saveLoadService)
+        ISaveLoadService saveLoadService,
+        IStatisticsService statisticsService)
     {
         _sudokuFactory = sudokuFactory ?? throw new ArgumentNullException(nameof(sudokuFactory));
         _validationService = validationService ?? throw new ArgumentNullException(nameof(validationService));
         _saveLoadService = saveLoadService ?? throw new ArgumentNullException(nameof(saveLoadService));
+        _statisticsService = statisticsService ?? throw new ArgumentNullException(nameof(statisticsService));
 
         Difficulties = new ObservableCollection<GameDifficulty>(Enum.GetValues<GameDifficulty>());
         _selectedDifficulty = GameDifficulty.Easy;
@@ -106,6 +114,7 @@ public class GameViewModel : BaseViewModel
         _currentSession.Resume();
         _lastResumeUtc = DateTime.UtcNow;
         _isGameCompleted = false;
+        _statisticsUpdatedForCurrentSession = false;
 
         BuildCellsFromBoard(_currentSession.Board);
         UpdateElapsedTimeDisplay(TimeSpan.Zero);
@@ -215,6 +224,7 @@ public class GameViewModel : BaseViewModel
             _isGameCompleted = true;
             _gameTimer.Stop();
             FinalizeElapsedOnCompletion(_currentSession);
+            _ = RegisterWinStatisticsAsync(_currentSession.Elapsed);
             IsBoardInteractionEnabled = false;
             StatusMessage = "Вітаю! Sudoku розв'язано.";
             CommandManager.InvalidateRequerySuggested();
@@ -253,6 +263,7 @@ public class GameViewModel : BaseViewModel
         _gameTimer.Stop();
 
         _currentSession = loadedSession;
+        _statisticsUpdatedForCurrentSession = _validationService.IsBoardComplete(loadedSession.Board);
         SelectedDifficulty = loadedSession.Difficulty;
         BuildCellsFromBoard(loadedSession.Board);
         UpdateElapsedTimeDisplay(loadedSession.Elapsed);
@@ -350,5 +361,28 @@ public class GameViewModel : BaseViewModel
     private static ISaveLoadService CreateDefaultSaveLoadService()
     {
         return new SaveLoadService();
+    }
+
+    private async Task RegisterWinStatisticsAsync(TimeSpan completionTime)
+    {
+        if (_statisticsUpdatedForCurrentSession)
+        {
+            return;
+        }
+
+        try
+        {
+            await _statisticsService.RegisterResultAsync(true, completionTime);
+            _statisticsUpdatedForCurrentSession = true;
+        }
+        catch
+        {
+            // Keep gameplay flow unaffected even if statistics write fails.
+        }
+    }
+
+    private static IStatisticsService CreateDefaultStatisticsService()
+    {
+        return new StatisticsService();
     }
 }
