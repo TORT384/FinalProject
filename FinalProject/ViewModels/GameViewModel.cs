@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Windows.Input;
+using System.Windows.Threading;
 using FinalProject.Commands;
 using FinalProject.Factories;
 using FinalProject.Models;
@@ -13,9 +14,15 @@ public class GameViewModel : BaseViewModel
 {
     private readonly SudokuFactory _sudokuFactory;
     private readonly IValidationService _validationService;
+    private readonly DispatcherTimer _gameTimer;
     private GameSession? _currentSession;
+    private DateTime _lastResumeUtc;
     private GameDifficulty _selectedDifficulty;
+    private string _elapsedTimeDisplay = "00:00";
+    private string _pauseButtonText = "Пауза";
     private string _statusMessage = "Натисніть \"Нова гра\", щоб згенерувати дошку.";
+    private bool _isBoardInteractionEnabled;
+    private bool _isGameCompleted;
 
     public GameViewModel() : this(CreateDefaultFactory(), new ValidationService())
     {
@@ -31,6 +38,13 @@ public class GameViewModel : BaseViewModel
         Cells = new ObservableCollection<GameCellViewModel>();
 
         NewGameCommand = new RelayCommand(_ => StartNewGame());
+        PauseResumeCommand = new RelayCommand(_ => TogglePauseResume(), _ => _currentSession is not null && !_isGameCompleted);
+
+        _gameTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromSeconds(1)
+        };
+        _gameTimer.Tick += OnGameTimerTick;
     }
 
     public string Title => "Sudoku 9x9";
@@ -41,10 +55,24 @@ public class GameViewModel : BaseViewModel
 
     public ICommand NewGameCommand { get; }
 
+    public ICommand PauseResumeCommand { get; }
+
     public GameDifficulty SelectedDifficulty
     {
         get => _selectedDifficulty;
         set => SetProperty(ref _selectedDifficulty, value);
+    }
+
+    public string ElapsedTimeDisplay
+    {
+        get => _elapsedTimeDisplay;
+        private set => SetProperty(ref _elapsedTimeDisplay, value);
+    }
+
+    public string PauseButtonText
+    {
+        get => _pauseButtonText;
+        private set => SetProperty(ref _pauseButtonText, value);
     }
 
     public string StatusMessage
@@ -53,11 +81,29 @@ public class GameViewModel : BaseViewModel
         private set => SetProperty(ref _statusMessage, value);
     }
 
+    public bool IsBoardInteractionEnabled
+    {
+        get => _isBoardInteractionEnabled;
+        private set => SetProperty(ref _isBoardInteractionEnabled, value);
+    }
+
     private void StartNewGame()
     {
+        _gameTimer.Stop();
+
         _currentSession = _sudokuFactory.CreateNewSession(SelectedDifficulty);
+        _currentSession.Resume();
+        _lastResumeUtc = DateTime.UtcNow;
+        _isGameCompleted = false;
+
         BuildCellsFromBoard(_currentSession.Board);
+        UpdateElapsedTimeDisplay(TimeSpan.Zero);
+        PauseButtonText = "Пауза";
+        IsBoardInteractionEnabled = true;
+        _gameTimer.Start();
+
         StatusMessage = $"Нова гра ({SelectedDifficulty}).";
+        CommandManager.InvalidateRequerySuggested();
     }
 
     private void BuildCellsFromBoard(SudokuBoard board)
@@ -71,7 +117,7 @@ public class GameViewModel : BaseViewModel
 
     private void OnCellInputChanged(GameCellViewModel cellViewModel, string? inputValue)
     {
-        if (_currentSession is null || cellViewModel.IsFixed)
+        if (_currentSession is null || _currentSession.IsPaused || _isGameCompleted || cellViewModel.IsFixed)
         {
             return;
         }
@@ -110,8 +156,79 @@ public class GameViewModel : BaseViewModel
 
         if (_validationService.IsBoardComplete(_currentSession.Board))
         {
+            _isGameCompleted = true;
+            _gameTimer.Stop();
+            FinalizeElapsedOnCompletion(_currentSession);
+            IsBoardInteractionEnabled = false;
             StatusMessage = "Вітаю! Sudoku розв'язано.";
+            CommandManager.InvalidateRequerySuggested();
         }
+    }
+
+    private void TogglePauseResume()
+    {
+        if (_currentSession is null || _isGameCompleted)
+        {
+            return;
+        }
+
+        if (_currentSession.IsPaused)
+        {
+            _currentSession.Resume();
+            _lastResumeUtc = DateTime.UtcNow;
+            _gameTimer.Start();
+            PauseButtonText = "Пауза";
+            IsBoardInteractionEnabled = true;
+            StatusMessage = "Гру продовжено.";
+        }
+        else
+        {
+            PersistElapsedUntilNow(_currentSession);
+            _currentSession.Pause();
+            _gameTimer.Stop();
+            PauseButtonText = "Продовжити";
+            IsBoardInteractionEnabled = false;
+            StatusMessage = "Гру поставлено на паузу.";
+        }
+    }
+
+    private void OnGameTimerTick(object? sender, EventArgs e)
+    {
+        if (_currentSession is null || _currentSession.IsPaused || _isGameCompleted)
+        {
+            return;
+        }
+
+        UpdateElapsedTimeDisplay(GetCurrentElapsed(_currentSession));
+    }
+
+    private void PersistElapsedUntilNow(GameSession session)
+    {
+        var elapsed = GetCurrentElapsed(session);
+        session.UpdateElapsed(elapsed);
+        UpdateElapsedTimeDisplay(elapsed);
+    }
+
+    private void FinalizeElapsedOnCompletion(GameSession session)
+    {
+        PersistElapsedUntilNow(session);
+        session.Pause();
+        PauseButtonText = "Завершено";
+    }
+
+    private TimeSpan GetCurrentElapsed(GameSession session)
+    {
+        if (session.IsPaused)
+        {
+            return session.Elapsed;
+        }
+
+        return session.Elapsed + (DateTime.UtcNow - _lastResumeUtc);
+    }
+
+    private void UpdateElapsedTimeDisplay(TimeSpan elapsed)
+    {
+        ElapsedTimeDisplay = $"{(int)elapsed.TotalMinutes:00}:{elapsed.Seconds:00}";
     }
 
     private static bool TryParseSingleDigit(string value, out int parsedValue)
