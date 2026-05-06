@@ -51,12 +51,6 @@ dotnet build FinalProject.sln
 dotnet run --project FinalProject/FinalProject.csproj
 ```
 
-## Запуск тестів
-
-```bash
-dotnet test FinalProject.sln
-```
-
 ---
 
 ## Архітектура
@@ -77,18 +71,16 @@ dotnet test FinalProject.sln
 FinalProject/
 │
 ├── FinalProject/                  # Основний WPF застосунок
-│   ├── Models/
-│   ├── ViewModels/
-│   ├── Views/
-│   ├── Services/
-│   │   └── Interfaces/
-│   ├── Commands/
-│   ├── Factories/
-│   ├── Strategies/
-│   └── Persistence/
-│       └── Contracts/
-│
-└── FinalProject.Tests/            # Unit-тести
+├── Models/
+├── ViewModels/
+├── Views/
+├── Services/
+│   └── Interfaces/
+├── Commands/
+├── Factories/
+├── Strategies/
+└── Persistence/
+└── Contracts/
 ```
 
 ---
@@ -166,17 +158,6 @@ DTO-контракти:
 
 ---
 
-## Тести
-
-Тестовий проєкт: [`FinalProject.Tests`](FinalProject.Tests)
-
-Поточне покриття core-логіки:
-- [`ValidationServiceTests`](FinalProject.Tests/Services/ValidationServiceTests.cs)
-- [`StatisticsTests`](FinalProject.Tests/Models/StatisticsTests.cs)
-- [`SettingsServiceTests`](FinalProject.Tests/Services/SettingsServiceTests.cs)
-
----
-
 ## Примітка щодо Git-воркфлоу
 
 Проєкт розбивався на невеликі фічі для чистих PR:
@@ -190,6 +171,5 @@ DTO-контракти:
 - `feature/settings`
 - `feature/validation-polish`
 - `feature/ui-polish`
-- `feature/tests-core`
 
 Такий підхід добре показує контроль версій, поступову еволюцію архітектури та якісну історію комітів.
