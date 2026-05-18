@@ -1,5 +1,8 @@
+using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows.Input;
 using System.Windows.Threading;
 using FinalProject.Commands;
@@ -31,15 +34,7 @@ public class GameViewModel : BaseViewModel
     private bool _isGameCompleted;
     private bool _statisticsUpdatedForCurrentSession;
 
-    public GameViewModel() : this(
-        CreateDefaultFactory(),
-        new ValidationService(),
-        CreateDefaultSaveLoadService(),
-        CreateDefaultStatisticsService(),
-        CreateDefaultSettingsService())
-    {
-    }
-
+    //Залишив тільки один чистий конструктор ДЛЯ DEPENDENCY INJECTION
     public GameViewModel(
         SudokuFactory sudokuFactory,
         IValidationService validationService,
@@ -362,24 +357,6 @@ public class GameViewModel : BaseViewModel
         cellViewModel.SetInputSilently(uiValue);
     }
 
-    private static SudokuFactory CreateDefaultFactory()
-    {
-        var strategies = new ISudokuGenerationStrategy[]
-        {
-            new EasyGenerationStrategy(),
-            new MediumGenerationStrategy(),
-            new HardGenerationStrategy()
-        };
-
-        var generator = new SudokuGenerator(strategies);
-        return new SudokuFactory(generator);
-    }
-
-    private static ISaveLoadService CreateDefaultSaveLoadService()
-    {
-        return new SaveLoadService();
-    }
-
     private async Task RegisterWinStatisticsAsync(TimeSpan completionTime)
     {
         if (_statisticsUpdatedForCurrentSession)
@@ -396,16 +373,6 @@ public class GameViewModel : BaseViewModel
         {
             // Keep gameplay flow unaffected even if statistics write fails.
         }
-    }
-
-    private static IStatisticsService CreateDefaultStatisticsService()
-    {
-        return new StatisticsService();
-    }
-
-    private static ISettingsService CreateDefaultSettingsService()
-    {
-        return new SettingsService();
     }
 
     private async Task LoadSettingsAsync()
